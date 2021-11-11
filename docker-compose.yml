@@ -1,0 +1,59 @@
+version: '3'
+
+services:
+  nginx:
+    container_name: infusemedia_nginx
+    tty: true
+    image: nginx:latest
+    ports:
+      - '${APP_PORT:-80}:80'
+      - '${APP_SSL_PORT:-443}:443'
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    volumes:
+      - './:/var/www'
+      - './var/log/nginx:/var/log/nginx'
+      - './.docker/nginx/templates:/etc/nginx/templates'
+    depends_on:
+      - php
+    networks:
+      - infuse
+  php:
+    container_name: infusemedia_php
+    tty: true
+    build:
+      context: ./.docker/php/8.0
+      dockerfile: Dockerfile
+    volumes:
+      - './:/var/www'
+    depends_on:
+      - mysql
+    networks:
+      - infuse
+  mysql:
+    container_name: infusemedia_mysql
+    tty: true
+    image: 'mysql:8.0'
+    ports:
+      - '${FORWARD_DB_PORT:-3306}:${DB_PORT:-3306}'
+    environment:
+      MYSQL_ROOT_PASSWORD: '${DB_PASSWORD:-secret}'
+      MYSQL_DATABASE: '${DB_DATABASE}'
+      MYSQL_USER: '${DB_USERNAME}'
+      MYSQL_PASSWORD: '${DB_PASSWORD:-secret}'
+    volumes:
+      - 'infusemysql:/var/lib/mysql'
+      - './var/log/mysql:/var/log/mysql'
+      - './.docker/mysql/docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d'
+    networks:
+      - infuse
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-p${DB_PASSWORD}']
+      retries: 3
+      timeout: 5s
+networks:
+  infuse:
+    driver: bridge
+volumes:
+  infusemysql:
+    driver: local
